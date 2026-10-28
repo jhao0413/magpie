@@ -580,7 +580,7 @@ func (c claudeCLI) asRoot(env []string) []string {
 // claudeEnvVars are the variables magpie sets for a Claude Code run, which
 // one in WSL is handed (wslrun's Env).
 var claudeEnvVars = []string{"ENABLE_CLAUDEAI_MCP_SERVERS", "DISABLE_AUTO_COMPACT", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
-	"DISABLE_TELEMETRY", "DISABLE_ERROR_REPORTING", "DISABLE_AUTOUPDATER", "ANTHROPIC_BETAS"}
+	"DISABLE_TELEMETRY", "DISABLE_ERROR_REPORTING", "DISABLE_AUTOUPDATER", "ANTHROPIC_BETAS", "CLAUDE_CODE_ENTRYPOINT"}
 
 // env is env for a run in config directory configDir ("" for the account
 // Claude Code is signed in to): for one in WSL, what of it goes in.
@@ -2093,7 +2093,14 @@ func cleanClaudeEnv(env []string) []string {
 		// an hour's cache, as Claude Code writes it on a subscription within
 		// its limits, always: the mark on the caller's instructions
 		// (renderClaudePrompt) is an hour's, which may not follow a 5m one
-		"CLAUDE_CODE_PROMPT_CACHE_TTL=1h")
+		"CLAUDE_CODE_PROMPT_CACHE_TTL=1h",
+		// the run says who started it. A headless one is labelled sdk-cli,
+		// which Anthropic meters against the 5-hour window at about twice
+		// the interactive rate per token (anthropics/claude-code#97074), and
+		// an unknown label is metered as Claude Code's own client; one a
+		// session magpie was started inside left here (sdk-cli, sdk-ts, cli,
+		// which -p relabels sdk-cli) is dropped above, so magpie's name wins
+		"CLAUDE_CODE_ENTRYPOINT=magpie")
 }
 
 type lockedWriter struct{ run *subscriptionRun }

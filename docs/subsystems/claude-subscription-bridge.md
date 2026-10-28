@@ -36,6 +36,23 @@ bridge's run gets it; the warm-up and `/usage` runs don't skip
 permissions.
 
 Every Claude Code magpie starts for the subscription (a turn's run, the
+warm-up and model test `askClaude`, and the `/usage` read) is named as
+magpie's: `cleanClaudeEnv` sets `CLAUDE_CODE_ENTRYPOINT=magpie` (with
+`claudeEnvVars` handing it to a WSL run), overwriting any label a session
+magpie was started inside left in the environment. A headless `-p` run is
+otherwise labelled `sdk-cli` (and `claude -p` relabels `cli` as `sdk-cli`),
+which Anthropic meters against the 5-hour window at about twice the
+interactive rate per token
+([anthropics/claude-code#97074](https://github.com/anthropics/claude-code/issues/97074));
+an unknown label is metered as Claude Code's own client. That is the
+observed rule, not a confirmed one: Anthropic has said nothing about the
+`sdk-*` weighting and can change how unknown labels are classified, so the
+label only names the caller honestly, and what magpie's runs save by it is
+what the issue's reporters measured, not something magpie measures. The
+sign-in's `claude auth login` and `auth status` ask no model and keep
+their own env (`claudeSignInEnv`).
+
+Every Claude Code magpie starts for the subscription (a turn's run, the
 warm-up and model test `askClaude`, `/usage`, and the sign-in's
 `auth login` and `auth status`) is given its proxy through one helper,
 `claudeCLI.proxied` in each package, which is

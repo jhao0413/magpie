@@ -15,6 +15,7 @@ import (
 
 	"github.com/yetone/magpie/internal/provider"
 	"github.com/yetone/magpie/internal/testenv"
+	"github.com/yetone/magpie/internal/wslrun"
 )
 
 func TestClaudeSubscriptionPromptKeepsForeignHarnessOutOfSystem(t *testing.T) {
@@ -65,7 +66,7 @@ func TestCleanClaudeEnvRemovesGatewayOverrides(t *testing.T) {
 	joined := strings.Join(got, "\n")
 	for _, forbidden := range []string{
 		"ANTHROPIC_BASE_URL=", "ANTHROPIC_API_KEY=", "ANTHROPIC_AUTH_TOKEN=", "CLAUDECODE=",
-		"CLAUDE_CODE_ENTRYPOINT=", "CLAUDE_CODE_SSE_PORT=",
+		"CLAUDE_CODE_ENTRYPOINT=cli", "CLAUDE_CODE_SSE_PORT=",
 	} {
 		if strings.Contains(joined, forbidden) {
 			t.Fatalf("kept %s in %q", forbidden, joined)
@@ -74,6 +75,49 @@ func TestCleanClaudeEnvRemovesGatewayOverrides(t *testing.T) {
 	for _, want := range []string{"PATH=/bin", "KEEP=yes", "ENABLE_CLAUDEAI_MCP_SERVERS=0", "DISABLE_AUTO_COMPACT=1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %s in %q", want, joined)
+		}
+	}
+}
+
+// TestCleanClaudeEnvNamesMagpieAsEntrypoint: a headless run is labelled
+// sdk-cli, which Anthropic meters against the 5-hour window at about twice
+// the interactive rate per token (anthropics/claude-code#97074), so every
+// run names magpie as its entrypoint, and a label a session magpie was
+// started inside left in the environment never wins.
+func TestCleanClaudeEnvNamesMagpieAsEntrypoint(t *testing.T) {
+	for _, set := range []string{"", "sdk-cli", "sdk-ts", "cli", "claude-vscode"} {
+		in := []string{"PATH=/bin"}
+		if set != "" {
+			in = append(in, "CLAUDE_CODE_ENTRYPOINT="+set)
+		}
+		got, n := cleanClaudeEnv(in), 0
+		for _, e := range got {
+			if !strings.HasPrefix(e, "CLAUDE_CODE_ENTRYPOINT=") {
+				continue
+			}
+			n++
+			if e != "CLAUDE_CODE_ENTRYPOINT=magpie" {
+				t.Fatalf("CLAUDE_CODE_ENTRYPOINT=%s kept as %q", set, e)
+			}
+		}
+		if n != 1 {
+			t.Fatalf("CLAUDE_CODE_ENTRYPOINT=%s: %d magpie labels in %q", set, n, got)
+		}
+	}
+}
+
+// TestClaudeEnvVarsHandMagpiesEntrypointToWSL: a run in a WSL distro is
+// handed only what claudeEnvVars names (wslrun's Env), so magpie's own
+// entrypoint label goes in with the rest.
+func TestClaudeEnvVarsHandMagpiesEntrypointToWSL(t *testing.T) {
+	env := wslrun.Tool{}.Env(cleanClaudeEnv([]string{"PATH=/bin"}), claudeEnvVars...)
+	joined := strings.Join(env, "\n")
+	if !strings.Contains(joined, "CLAUDE_CODE_ENTRYPOINT=magpie") {
+		t.Fatalf("no CLAUDE_CODE_ENTRYPOINT=magpie in %q", env)
+	}
+	for _, e := range env {
+		if wslenv, ok := strings.CutPrefix(e, "WSLENV="); ok && !slices.Contains(strings.Split(wslenv, ":"), "CLAUDE_CODE_ENTRYPOINT") {
+			t.Fatalf("%q does not hand CLAUDE_CODE_ENTRYPOINT to the distro", e)
 		}
 	}
 }
